@@ -1,0 +1,27 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.zhoubianbeiji.app'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "com.zhoubianbeiji.app"
+        minSdk 24
+        targetSdk 34
+        versionCode 1
+        versionName "1.0.0"
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+}
+
+dependencies {
+    // 采用最简原生 Activity 与 WebView，零沉重第三方库，极速启动
+}

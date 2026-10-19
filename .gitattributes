@@ -1,0 +1,19 @@
+# 统一行尾：源码一律 LF（本项目多处校验正则按 \n 编写，
+# 若被 Windows 的 autocrlf 转成 CRLF 会导致校验误报）
+* text=auto eol=lf
+
+# Windows 批处理必须 CRLF，否则 cmd 解析异常
+*.bat  text eol=crlf
+*.cmd  text eol=crlf
+
+# 二进制，不做行尾转换
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.gif  binary
+*.ico  binary
+*.zip  binary
+*.xlsx binary
+*.pdf  binary
+*.jks  binary
+*.keystore binary

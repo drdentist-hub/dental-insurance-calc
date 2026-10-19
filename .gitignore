@@ -1,0 +1,44 @@
+# ---------------------------------------------------------------
+# 肘边备急 · Git 忽略规则
+# 许可证：GNU GPL-3.0（见 LICENSE）
+# ---------------------------------------------------------------
+
+# 依赖
+node_modules/
+
+# 临时与调试产物：官方源表（xlsx/pdf）、截图、日志、一次性验证脚本
+# 说明：tools/gen_items114.py 需要项目库官方源表，该表不随仓库分发；
+#       src/data/items114.js 已是生成结果，构建不需要重新生成。
+_scratch/
+
+# WorkBuddy 本地会话记忆与内部产物（非项目内容）
+.workbuddy/
+*.genie
+.wbapp_*
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+
+# 操作系统
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# 编辑器
+.vscode/
+.idea/
+*.swp
+
+# Android 本机配置（含 SDK 绝对路径，因机器而异）
+android/local.properties
+android/.gradle/
+android/build/
+android/app/build/
+*.jks
+*.keystore
+
+# ⚠️ dist/ 故意不忽略 —— 用于 GitHub Pages 直接托管单文件产物

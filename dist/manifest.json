@@ -1,0 +1,32 @@
+{
+  "name": "肘边备急 · 口腔门诊医保智能精算与合规风控",
+  "short_name": "肘边备急",
+  "description": "口腔门诊五地最新医保政策、多税务模式测算、最优收费筹划与医保红线实时拦截（GPL-3.0 开源）",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "lang": "zh-CN",
+  "background_color": "#f1f5f9",
+  "theme_color": "#0284c7",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}
