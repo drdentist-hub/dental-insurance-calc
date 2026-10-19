@@ -70,12 +70,14 @@ jobs:
           KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           KEY_PASS: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
-          set -e
-          if [ -n "$KS_B64" ]; then
+          set -euo pipefail
+          # ⚠️ 注意：写进 $GITHUB_ENV 的变量只对「后续步骤」可见，本步骤内必须用局部变量，
+          #    否则 test -f "$APK" 拿到空值，会把构建成功的包误判成"APK 未生成"。
+          if [ -n "${KS_B64:-}" ]; then
             echo "→ 用 Actions Secrets 中的密钥构建正式签名 release APK"
             printf '%s' "$KS_B64" | base64 -d > "$RUNNER_TEMP/keystore.p12"
             echo "   密钥库 $(wc -c < "$RUNNER_TEMP/keystore.p12") 字节"
-            test -s "$RUNNER_TEMP/keystore.p12" || { echo "::error::密钥库解码失败"; exit 1; }
+            test -s "$RUNNER_TEMP/keystore.p12"
 
             # 通过属性文件传签名信息（Gradle 配置阶段读环境变量不可靠）
             cat > keystore.properties <<EOF
@@ -90,20 +92,25 @@ jobs:
             rm -f keystore.properties
 
             # 签名未生效时 AGP 只会产出 -unsigned.apk，必须显式拦住
-            if [ -f app/build/outputs/apk/release/app-release.apk ]; then
-              echo "APK=app/build/outputs/apk/release/app-release.apk" >> "$GITHUB_ENV"
-            else
+            if [ ! -f app/build/outputs/apk/release/app-release.apk ]; then
               echo "::error::未生成已签名的 app-release.apk（签名配置未生效）"
               ls -R app/build/outputs/apk || true
               exit 1
             fi
+            APK_PATH=app/build/outputs/apk/release/app-release.apk
           else
             echo "::warning::未配置签名密钥，回退为调试签名 APK（仅可用于测试）"
             gradle :app:assembleDebug --no-daemon --stacktrace
-            echo "APK=app/build/outputs/apk/debug/app-debug.apk" >> "$GITHUB_ENV"
+            APK_PATH=app/build/outputs/apk/debug/app-debug.apk
           fi
-          test -f "$APK" || { echo "::error::APK 未生成"; exit 1; }
-          ls -lh "$APK"
+
+          test -f "$APK_PATH" || { echo "::error::APK 未生成：$APK_PATH"; exit 1; }
+          ls -lh "$APK_PATH"
+          # 校验确实是已签名包（-unsigned 会被明确拦下）
+          case "$APK_PATH" in
+            *unsigned*) echo "::error::产物是未签名包，不能用于发布"; exit 1;;
+          esac
+          echo "APK=$APK_PATH" >> "$GITHUB_ENV"
 
       - name: 整理发布文件
         run: |
