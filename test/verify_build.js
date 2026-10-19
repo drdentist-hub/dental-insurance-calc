@@ -227,17 +227,30 @@ try {
   if (stale.length) bad('仍残留旧名（齿康保 / chikangbao）: ' + stale.join(', '));
   else ok(`产物与安卓工程（${scan.length} 个文件）中无旧名残留`);
 
-  // 安卓包名四处必须一致，且 Java 文件的目录要与 package 声明匹配
+  // 安卓包名一致性 + AGP 8 兼容性
+  //  - AGP 8 起 manifest 里的 package 属性不再支持，包名只能由 gradle 的 namespace 决定，
+  //    若还留着 package 会直接构建失败 → 必须禁止
+  //  - Java 的 package 声明必须与所在目录、与 namespace、与 applicationId 完全一致
   {
     const manifest = fs.readFileSync(path.join(ROOT, 'android/app/src/main/AndroidManifest.xml'), 'utf-8');
     const gradle = fs.readFileSync(path.join(ROOT, 'android/app/build.gradle'), 'utf-8');
-    const pkgManifest = (manifest.match(/package="([^"]+)"/) || [])[1] || '';
+    const pkgInManifest = (manifest.match(/<manifest[^>]*\spackage\s*=\s*"([^"]+)"/) || [])[1] || '';
     const pkgNs = (gradle.match(/namespace\s+['"]([^'"]+)['"]/) || [])[1] || '';
     const pkgAppId = (gradle.match(/applicationId\s+['"]([^'"]+)['"]/) || [])[1] || '';
+    const verName = (gradle.match(/versionName\s+['"]([^'"]+)['"]/) || [])[1] || '';
+    const verCode = (gradle.match(/versionCode\s+(\d+)/) || [])[1] || '';
+
+    const pkgErrors = [];
+    if (pkgInManifest) {
+      pkgErrors.push(`manifest 仍声明 package="${pkgInManifest}"（AGP 8 已不支持，会导致构建失败，改由 gradle namespace 决定）`);
+    }
+    if (!pkgNs) pkgErrors.push('gradle 缺 namespace');
+    if (pkgNs && pkgAppId && pkgNs !== pkgAppId) {
+      pkgErrors.push(`applicationId(${pkgAppId}) ≠ namespace(${pkgNs})`);
+    }
 
     const javaFiles = walk(path.join(ROOT, 'android/app/src/main/java'), [])
       .filter((f) => /\.(java|kt)$/i.test(f));
-    const pkgErrors = [];
     if (!javaFiles.length) pkgErrors.push('没找到任何 Java/Kotlin 源文件');
     for (const f of javaFiles) {
       const src = fs.readFileSync(f, 'utf-8');
@@ -250,15 +263,23 @@ try {
       else if (decl !== dirPkg) {
         pkgErrors.push(`${path.basename(f)} 的 package(${decl}) 与所在目录(${dirPkg}) 不一致`);
       }
-      if (decl && pkgManifest && decl !== pkgManifest) {
-        pkgErrors.push(`${path.basename(f)} 的 package(${decl}) ≠ manifest package(${pkgManifest})`);
+      if (decl && pkgNs && decl !== pkgNs) {
+        pkgErrors.push(`${path.basename(f)} 的 package(${decl}) ≠ gradle namespace(${pkgNs})`);
       }
     }
-    if (pkgNs !== pkgManifest) pkgErrors.push(`gradle namespace(${pkgNs}) ≠ manifest package(${pkgManifest})`);
-    if (pkgAppId !== pkgManifest) pkgErrors.push(`applicationId(${pkgAppId}) ≠ manifest package(${pkgManifest})`);
 
-    if (pkgErrors.length) bad('安卓包名不一致（会导致启动崩溃）: ' + pkgErrors.join('；'));
-    else ok(`安卓包名四处一致：manifest / namespace / applicationId / Java（${pkgManifest}）`);
+    // APK 版本号必须跟随 APP_INFO.version，否则 Release 里两个安装包的版本会对不上
+    const appVer = (html.match(/version:\s*'([0-9]+\.[0-9]+\.[0-9]+)'/) || [])[1] || '';
+    if (appVer && verName && appVer !== verName) {
+      pkgErrors.push(`build.gradle versionName(${verName}) ≠ APP_INFO.version(${appVer})`);
+    }
+    if (!verCode) pkgErrors.push('build.gradle 缺 versionCode');
+
+    if (pkgErrors.length) bad('安卓构建配置有问题: ' + pkgErrors.join('；'));
+    else {
+      ok(`安卓包名一致：namespace / applicationId / Java（${pkgNs}），manifest 未声明 package（AGP 8 要求）`);
+      ok(`APK 版本号与产物一致：versionName ${verName} · versionCode ${verCode}`);
+    }
   }
 
   // 开源声明：LICENSE 文件 + 产物内嵌许可全文（GPL-3.0 第 4 条要求随附许可原文）

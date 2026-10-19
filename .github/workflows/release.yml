@@ -1,0 +1,132 @@
+name: Build & Release
+
+# 触发方式
+#   1) 推送 v* 标签   → 构建并发布到 GitHub Releases
+#   2) 手动运行       → 只构建并上传 artifact（publish 勾上才会建 Release）
+#
+# 发布物：
+#   · zhoubianbeiji-<版本>.apk   安卓安装包（正式签名，密钥在 Actions Secrets）
+#   · zhoubianbeiji-<版本>.html  单文件离线版，任何浏览器双击即用
+#   · LICENSE.txt                GPL-3.0 全文（分发必附）
+#   · SHA256SUMS.txt             校验和
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: '创建 / 更新 GitHub Release（不勾则只构建并上传 artifact）'
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: 读取版本号并校验产物一致
+        id: meta
+        run: |
+          set -e
+          V=$(sed -n "s/.*version: '\([0-9][0-9.]*\)'.*/\1/p" src/data/appInfo.js | head -1)
+          test -n "$V" || { echo "::error::读不到 APP_INFO.version"; exit 1; }
+          echo "version=$V" >> "$GITHUB_OUTPUT"
+
+          grep -q "version: '$V'" dist/index.html \
+            || { echo "::error::dist/index.html 版本与源码不符，请先 node build.js 并提交 dist/"; exit 1; }
+          cmp -s dist/index.html android/app/src/main/assets/www/index.html \
+            || { echo "::error::APK 内嵌页面与 dist/index.html 不一致，请重新 node build.js"; exit 1; }
+          echo "✅ 版本 $V：dist 与 APK 内嵌页面一致"
+
+      - name: Setup JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Gradle 8.2
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.2'
+
+      - name: 确保 Android SDK 组件
+        run: |
+          set +e
+          yes 2>/dev/null | sdkmanager --licenses >/dev/null 2>&1
+          sdkmanager "platforms;android-34" "build-tools;34.0.0" "platform-tools" >/dev/null 2>&1
+          echo "ANDROID_HOME=${ANDROID_HOME:-未设置}"
+
+      - name: 构建 APK
+        working-directory: android
+        env:
+          KS_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KS_PASS: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASS: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          set -e
+          if [ -n "$KS_B64" ]; then
+            echo "→ 用 Actions Secrets 中的密钥构建正式签名 release APK"
+            printf '%s' "$KS_B64" | base64 -d > "$RUNNER_TEMP/keystore.p12"
+            export ANDROID_KEYSTORE_PATH="$RUNNER_TEMP/keystore.p12"
+            export ANDROID_KEYSTORE_PASSWORD="$KS_PASS"
+            export ANDROID_KEY_ALIAS="$KEY_ALIAS"
+            export ANDROID_KEY_PASSWORD="$KEY_PASS"
+            gradle :app:assembleRelease --no-daemon --stacktrace
+            echo "APK=app/build/outputs/apk/release/app-release.apk" >> "$GITHUB_ENV"
+          else
+            echo "::warning::未配置签名密钥，回退为调试签名 APK（仅可用于测试）"
+            gradle :app:assembleDebug --no-daemon --stacktrace
+            echo "APK=app/build/outputs/apk/debug/app-debug.apk" >> "$GITHUB_ENV"
+          fi
+          test -f "$APK" || { echo "::error::APK 未生成"; exit 1; }
+          ls -lh "$APK"
+
+      - name: 整理发布文件
+        run: |
+          set -e
+          V="${{ steps.meta.outputs.version }}"
+          mkdir -p out
+          cp "android/$APK" "out/zhoubianbeiji-${V}.apk"
+          cp dist/index.html "out/zhoubianbeiji-${V}.html"
+          cp dist/LICENSE "out/LICENSE.txt"
+          ( cd out && sha256sum *.apk *.html LICENSE.txt > SHA256SUMS.txt && cat SHA256SUMS.txt )
+          echo "--- 发布文件 ---"
+          ls -lh out
+
+      - name: 上传构建产物（任何触发方式都保留）
+        uses: actions/upload-artifact@v4
+        with:
+          name: zhoubianbeiji-${{ steps.meta.outputs.version }}
+          path: out/*
+
+      - name: 生成发布说明
+        run: |
+          V="${{ steps.meta.outputs.version }}"
+          sed "s/{{VERSION}}/${V}/g" .github/release-notes.md > "$RUNNER_TEMP/notes.md"
+          cat "$RUNNER_TEMP/notes.md"
+
+      - name: 发布 Release
+        if: startsWith(github.ref, 'refs/tags/') || inputs.publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -e
+          V="${{ steps.meta.outputs.version }}"
+          TAG="v${V}"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG 已存在 → 更新说明与资产"
+            gh release edit "$TAG" --notes-file "$RUNNER_TEMP/notes.md"
+            gh release upload "$TAG" out/* --clobber
+          else
+            gh release create "$TAG" out/* \
+              --title "肘边备急 v${V} · 口腔门诊医保精算与报税" \
+              --notes-file "$RUNNER_TEMP/notes.md"
+          fi
+          echo "✅ https://github.com/${GITHUB_REPOSITORY}/releases/tag/${TAG}"
