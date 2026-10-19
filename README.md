@@ -6,6 +6,8 @@
 
 **许可证** GNU GPL-3.0 ｜ **第三方依赖** 0 ｜ **运行时网络请求** 0 ｜ **离线可用** 是
 
+**在线使用** <https://drdentist-hub.github.io/dental-insurance-calc/> ｜ **源码仓库** <https://github.com/drdentist-hub/dental-insurance-calc>
+
 ---
 
 ## 📜 开源声明
@@ -191,6 +193,10 @@
 ---
 
 ## 🚀 安装与使用方式
+
+### 途径 0：直接在线使用（免安装）
+- **GitHub Pages**：<https://drdentist-hub.github.io/dental-insurance-calc/>
+- 手机浏览器打开后可「添加到主屏幕」，按 PWA 离线使用。
 
 ### 途径 A：电脑端双击即用（零配置免安装）
 - 直接在电脑上双击 `dist/index.html` 即可在任意浏览器中秒开运行；
