@@ -4,12 +4,21 @@ plugins {
 
 // ---------------------------------------------------------------
 // 签名配置
-// 密钥库只存在于 GitHub Actions Secrets（ANDROID_KEYSTORE_BASE64 等），不进仓库。
-// CI 会把密钥库解码到临时文件并注入下面这些环境变量；
-// 本地开发没有这些变量时不配置签名，assembleRelease 会产出未签名包（不可发布）。
+// 密钥库只存在于 GitHub Actions Secrets，不进仓库；CI 会在 android/ 下临时
+// 生成 keystore.properties（已在 .gitignore 中排除），构建完即删除。
+//
+// ⚠️ 不要改用 System.getenv()：Gradle 配置阶段跑在 daemon 里，环境变量
+//    未必是当前这次调用 export 的那份（实测导致签名配置被静默跳过，
+//    产出 app-release-unsigned.apk）。属性文件是可靠做法。
 // ---------------------------------------------------------------
-def ksPath = System.getenv("ANDROID_KEYSTORE_PATH")
-def hasSigning = ksPath != null && !ksPath.trim().isEmpty() && file(ksPath).exists()
+def ksPropsFile = rootProject.file("keystore.properties")
+def ksProps = new Properties()
+def hasSigning = false
+if (ksPropsFile.exists()) {
+    ksPropsFile.withInputStream { ksProps.load(it) }
+    def sf = ksProps.getProperty("storeFile")
+    hasSigning = sf != null && file(sf).exists()
+}
 
 android {
     namespace 'com.zhoubianbeiji.app'
@@ -27,11 +36,11 @@ android {
     if (hasSigning) {
         signingConfigs {
             release {
-                storeFile file(ksPath)
+                storeFile file(ksProps.getProperty("storeFile"))
                 storeType "PKCS12"
-                storePassword System.getenv("ANDROID_KEYSTORE_PASSWORD")
-                keyAlias System.getenv("ANDROID_KEY_ALIAS")
-                keyPassword System.getenv("ANDROID_KEY_PASSWORD")
+                storePassword ksProps.getProperty("storePassword")
+                keyAlias ksProps.getProperty("keyAlias")
+                keyPassword ksProps.getProperty("keyPassword")
             }
         }
     }
