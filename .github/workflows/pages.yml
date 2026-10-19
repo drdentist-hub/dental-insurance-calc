@@ -1,0 +1,49 @@
+name: Deploy to GitHub Pages
+
+# 项目是纯前端单文件产物，部署 = 把仓库里已构建好的 dist/ 原样发到 Pages。
+# dist/ 随源码一起提交，因此这里**不做构建**，保证线上内容与仓库中经过测试的产物一致。
+# 改了 src/ 请先在本地跑 `node build.js` 并提交 dist/。
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: 校验构建产物存在
+        run: |
+          if [ ! -f dist/index.html ]; then
+            echo "::error::dist/index.html 缺失。请先在本地运行 node build.js 并提交 dist/。"
+            exit 1
+          fi
+          echo "产物大小: $(du -h dist/index.html | cut -f1)"
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

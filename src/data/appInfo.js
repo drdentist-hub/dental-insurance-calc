@@ -24,7 +24,7 @@ export const APP_INFO = {
   licenseFullName: 'GNU General Public License v3.0',
   licenseUrl: 'https://www.gnu.org/licenses/gpl-3.0.html',
   copyright: '2026 肘边备急项目全体贡献者（Contributors）',
-  repository: '',           // 有远程仓库后填此处，「关于」弹层会显示可复制地址
+  repository: 'https://github.com/drdentist-hub/dental-insurance-calc',  // 「关于」弹层会显示可复制地址
 
   /** 许可须知：GPL-3.0 的要点在于「分发即开源」，必须在应用内讲清楚，不能用 MIT 那套宽松说法 */
   licensePoints: {
